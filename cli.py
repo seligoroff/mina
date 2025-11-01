@@ -27,7 +27,7 @@ except ImportError:
     yaml = None
     YAML_AVAILABLE = False
 
-# Регулярки для tagcloud
+# Регулярки для tag
 # Используем явный паттерн для кириллицы и латиницы
 WORD_PATTERN = re.compile(r'\b[а-яА-ЯёЁa-zA-Z]{3,}\b', re.UNICODE)
 TIMESTAMP_PATTERN = re.compile(r'^\[\d{1,3}\.\d{2}\s*-\s*\d{1,3}\.\d{2}\]')
@@ -64,9 +64,11 @@ def cli():
 @click.option('--output', '-o', required=True, type=click.Path(), help='Путь к выходному текстовому файлу')
 @click.option('--model', '-m', default='small', show_default=True, 
               help='Название модели: tiny, base, small, medium, large. Для faster-whisper используйте формат "faster:model" (например, "faster:base")')
+@click.option('--language', '--lang', default='ru', show_default=True, 
+              help='Язык транскрипции (код ISO 639-1, например: ru, en, es, de)')
 @click.option('--compute-type', default='int8', show_default=True, 
               help='Тип вычислений для faster-whisper (int8, float16, float32)')
-def transcribe(input, output, model, compute_type):
+def scribe(input, output, model, language, compute_type):
     """Распознавание речи с таймингами с помощью OpenAI Whisper или faster-whisper."""
 
     # Проверка наличия ffmpeg (нужен для обоих движков)
@@ -84,16 +86,17 @@ def transcribe(input, output, model, compute_type):
         working_model = FasterWhisperModel(model_name, compute_type=compute_type)
         
         print(f"Распознавание: {input}")
-        segments, _ = working_model.transcribe(input, beam_size=5, language='ru')
+        segments, _ = working_model.transcribe(input, beam_size=5, language=language)
         
-        write_transcript(segments, output)
+        # faster-whisper возвращает генератор - выводим сегменты в реальном времени
+        write_transcript(segments, output, verbose=True)
     else:
         # Используем оригинальный Whisper
         print(f"Загрузка модели Whisper: {model}")
         working_model = whisper.load_model(model)
         
         print(f"Распознавание: {input}")
-        result = working_model.transcribe(input, language='ru', verbose=True)
+        result = working_model.transcribe(input, language=language, verbose=True)
         
         write_transcript(result['segments'], output)
 
@@ -107,7 +110,7 @@ def transcribe(input, output, model, compute_type):
 @click.option('--lemmatize', is_flag=True, default=False, help='Включить лемматизацию (требуется pymorphy3).')
 @click.option('--stopwords', required=False, type=click.Path(), help='Путь к файлу со стоп-словами (по одному слову на строку).')
 @click.option('--no-names', is_flag=True, default=False, help='Исключать имена собственные (Name-граммема).')
-def tagcloud(input, output, limit, lemmatize, stopwords, no_names):
+def tag(input, output, limit, lemmatize, stopwords, no_names):
     """Генерация облака слов (частотный список) из текста расшифровки митапа."""
 
     if lemmatize and not PYMORPHY3_AVAILABLE:

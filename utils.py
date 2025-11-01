@@ -1,7 +1,7 @@
 """Общие утилиты для транскрипции."""
 
 
-def write_transcript(segments, output_path):
+def write_transcript(segments, output_path, verbose=False):
     """
     Записывает транскрипцию сегментов в файл с таймингами.
     
@@ -12,6 +12,7 @@ def write_transcript(segments, output_path):
     Args:
         segments: Итератор или список сегментов (объекты или словари)
         output_path: Путь к выходному файлу
+        verbose: Если True, выводит сегменты на экран в реальном времени (для генераторов)
     """
     with open(output_path, "w", encoding="utf-8") as f:
         for segment in segments:
@@ -32,5 +33,12 @@ def write_transcript(segments, output_path):
                 end = getattr(segment, 'end', segment.get('end', 0.0))
                 text = getattr(segment, 'text', segment.get('text', '')).strip()
             
-            f.write(f"[{start:.2f} - {end:.2f}] {text}\n")
+            line = f"[{start:.2f} - {end:.2f}] {text}\n"
+            
+            # Выводим на экран в реальном времени, если verbose=True
+            if verbose:
+                print(line.strip())
+            
+            # Записываем в файл
+            f.write(line)
 

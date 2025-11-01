@@ -28,8 +28,8 @@
 
 Mina предоставляет единую CLI утилиту `cli.py` с тремя командами:
 
-1. **`transcribe`** - Транскрипция аудио с помощью OpenAI Whisper или faster-whisper
-2. **`tagcloud`** - Анализ транскрипций и генерация облака тегов
+1. **`scribe`** - Транскрипция аудио с помощью OpenAI Whisper или faster-whisper
+2. **`tag`** - Анализ транскрипций и генерация облака тегов
 3. **`protocol`** - Создание структурированного протокола из расшифровки с помощью DeepSeek API
 
 ---
@@ -41,7 +41,7 @@ Mina предоставляет единую CLI утилиту `cli.py` с тр
 - pip-библиотеки:
   - `whisper` (от OpenAI) - для транскрипции
   - `faster-whisper` - опционально, для быстрой транскрипции
-  - `pymorphy3` и `pymorphy3-dicts-ru` - опционально, для лемматизации в tagcloud
+  - `pymorphy3` и `pymorphy3-dicts-ru` - опционально, для лемматизации в tag
   - `pyyaml` - для работы с конфигом
   - `click`
   - `torch`
@@ -120,26 +120,28 @@ python cli.py --help
 
 ---
 
-### 1. Транскрипция (`transcribe`)
+### 1. Транскрипция (`scribe`)
 
 Распознавание речи с таймингами с помощью OpenAI Whisper или faster-whisper.
 
 ```bash
-python cli.py transcribe -i <аудиофайл> -o <текстовый_вывод> [-m <модель>]
+python cli.py scribe -i <аудиофайл> -o <текстовый_вывод> [-m <модель>] [--language <язык>]
 ```
 
 **Примеры:**
 
 **С оригинальным Whisper (по умолчанию):**
 ```bash
-python cli.py transcribe -i meeting.mp3 -o transcript.txt
-python cli.py transcribe -i interview.wav -o output.txt -m medium
+python cli.py scribe -i meeting.mp3 -o transcript.txt
+python cli.py scribe -i interview.wav -o output.txt -m medium
+python cli.py scribe -i english.mp3 -o output.txt --language en
 ```
 
 **С faster-whisper:**
 ```bash
-python cli.py transcribe -i meeting.mp3 -o transcript.txt -m faster:base
-python cli.py transcribe -i meeting.mp3 -o transcript.txt -m faster:small --compute-type float16
+python cli.py scribe -i meeting.mp3 -o transcript.txt -m faster:base
+python cli.py scribe -i meeting.mp3 -o transcript.txt -m faster:small --compute-type float16
+python cli.py scribe -i english.mp3 -o output.txt -m faster:base --language en
 ```
 
 **Аргументы:**
@@ -148,6 +150,7 @@ python cli.py transcribe -i meeting.mp3 -o transcript.txt -m faster:small --comp
 | `--input, -i` | Путь к входному аудиофайлу (обязательно) |
 | `--output, -o` | Путь к выходному .txt файлу (обязательно) |
 | `--model, -m` | Модель: tiny, base, small, medium, large. Для faster-whisper используйте формат "faster:model" (например, "faster:base") |
+| `--language, --lang` | Язык транскрипции (код ISO 639-1, например: ru, en, es, de). По умолчанию: ru |
 | `--compute-type` | Тип вычислений для faster-whisper (int8, float16, float32) |
 
 **Сравнение моделей Whisper:**
@@ -178,24 +181,24 @@ python cli.py transcribe -i meeting.mp3 -o transcript.txt -m faster:small --comp
 
 ---
 
-### 2. Анализ транскрипций (`tagcloud`)
+### 2. Анализ транскрипций (`tag`)
 
 Генерация облака тегов (частотного списка слов) из текста транскрипции.
 
 ```bash
-python cli.py tagcloud -i <файл_транскрипции> [-o <выходной_файл>] [--lemmatize] [--stopwords <файл>] [--limit <N>] [--no-names]
+python cli.py tag -i <файл_транскрипции> [-o <выходной_файл>] [--lemmatize] [--stopwords <файл>] [--limit <N>] [--no-names]
 ```
 
 **Примеры:**
 ```bash
 # Базовый анализ
-python cli.py tagcloud -i transcript.txt -o tags.txt
+python cli.py tag -i transcript.txt -o tags.txt
 
 # С лемматизацией и стоп-словами
-python cli.py tagcloud -i transcript.txt -o tags.txt --lemmatize --stopwords stopwords.txt
+python cli.py tag -i transcript.txt -o tags.txt --lemmatize --stopwords stopwords.txt
 
 # Исключить имена собственные и показать топ-100 слов
-python cli.py tagcloud -i transcript.txt -o tags.txt --lemmatize --no-names --limit 100
+python cli.py tag -i transcript.txt -o tags.txt --lemmatize --no-names --limit 100
 ```
 
 **Аргументы:**
@@ -262,7 +265,7 @@ deepseek:
 
 ## 📊 Формат вывода транскрипций
 
-Команда `transcribe` выводит текст в следующем формате:
+Команда `scribe` выводит текст в следующем формате:
 
 ```plaintext
 [0.00 - 5.43] Добро пожаловать на встречу по проекту.
@@ -278,16 +281,16 @@ deepseek:
 
 1. **Транскрипция аудио:**
    ```bash
-   python cli.py transcribe -i meeting.mp3 -o transcript.txt
+   python cli.py scribe -i meeting.mp3 -o transcript.txt
    ```
    или с faster-whisper:
    ```bash
-   python cli.py transcribe -i meeting.mp3 -o transcript.txt -m faster:base
+   python cli.py scribe -i meeting.mp3 -o transcript.txt -m faster:base
    ```
 
 2. **Анализ транскрипции:**
    ```bash
-   python cli.py tagcloud -i transcript.txt -o tags.txt --lemmatize --stopwords stopwords.txt
+   python cli.py tag -i transcript.txt -o tags.txt --lemmatize --stopwords stopwords.txt
    ```
 
 3. **Создание структурированного протокола:**
@@ -299,12 +302,12 @@ deepseek:
 
 ## 📌 Настройки
 
-### `transcribe`:
-- Язык задан явно: `language='ru'`
+### `scribe`:
+- Язык по умолчанию: `ru` (можно изменить через `--language`)
 - Модель по умолчанию: `small`
 - Тайминг выводится по сегментам
 
-### `tagcloud`:
+### `tag`:
 - Минимальная длина слова: 3 символа
 - Поддержка кириллицы и латиницы
 - Части речи, исключаемые при лемматизации: NPRO, ADVB, PRCL, CONJ, PREP, INTJ
@@ -320,7 +323,7 @@ src/
 ├── config.yaml                      # Конфигурация (создается из config.yaml.example)
 ├── config.yaml.example              # Пример конфигурации
 ├── deepseek-protocol-instructions.md  # Инструкции для создания протокола
-├── stopwords.txt                    # Список стоп-слов (для tagcloud)
+├── stopwords.txt                    # Список стоп-слов (для tag)
 └── requirements.txt                 # Зависимости проекта
 ```
 
@@ -330,6 +333,6 @@ src/
 
 - Для быстрой транскрипции используйте faster-whisper: `-m faster:base`
 - Для максимальной точности используйте оригинальный Whisper с моделью `medium` или `large`
-- Для анализа используйте `tagcloud` с лемматизацией для лучших результатов
+- Для анализа используйте `tag` с лемматизацией для лучших результатов
 - Файл `stopwords.txt` можно настроить под свои нужды
 - Для команды `protocol` настройте `config.yaml` с вашим API ключом DeepSeek
