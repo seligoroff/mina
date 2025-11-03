@@ -1,3 +1,9 @@
 stopwords.txt
 config.yaml
-__pycache__
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python

@@ -1,4 +1,4 @@
-"""Общие утилиты для транскрипции."""
+"""Утилиты для записи транскрипций."""
 
 
 def write_transcript(segments, output_path, verbose=False):
@@ -41,4 +41,7 @@ def write_transcript(segments, output_path, verbose=False):
             
             # Записываем в файл
             f.write(line)
+
+
+
 

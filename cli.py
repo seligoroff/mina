@@ -1,56 +1,11 @@
-import re
 import os
 import click
 import shutil
-import whisper
 import requests
-from collections import Counter
-from utils import write_transcript
-
-try:
-    from faster_whisper import WhisperModel as FasterWhisperModel
-    FASTER_WHISPER_AVAILABLE = True
-except ImportError:
-    FASTER_WHISPER_AVAILABLE = False
-
-try:
-    import pymorphy3
-    PYMORPHY3_AVAILABLE = True
-except ImportError:
-    pymorphy3 = None
-    PYMORPHY3_AVAILABLE = False
-
-try:
-    import yaml
-    YAML_AVAILABLE = True
-except ImportError:
-    yaml = None
-    YAML_AVAILABLE = False
-
-# Регулярки для tag
-# Используем явный паттерн для кириллицы и латиницы
-WORD_PATTERN = re.compile(r'\b[а-яА-ЯёЁa-zA-Z]{3,}\b', re.UNICODE)
-TIMESTAMP_PATTERN = re.compile(r'^\[\d{1,3}\.\d{2}\s*-\s*\d{1,3}\.\d{2}\]')
-
-# Части речи, которые считаем шумом
-POS_TO_EXCLUDE = {'NPRO', 'ADVB', 'PRCL', 'CONJ', 'PREP', 'INTJ'}
-
-
-def load_config(config_path):
-    """Загружает конфигурацию из YAML файла."""
-    if not YAML_AVAILABLE:
-        raise click.ClickException("Для работы с конфигом требуется установить pyyaml: pip install pyyaml")
-    
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        return config
-    except FileNotFoundError:
-        raise click.ClickException(f"Файл конфигурации не найден: {config_path}")
-    except yaml.YAMLError as e:
-        raise click.ClickException(f"Ошибка при чтении YAML конфига {config_path}: {e}")
-    except Exception as e:
-        raise click.ClickException(f"Ошибка при загрузке конфига {config_path}: {e}")
+from app.factories import create_transcription_adapter, create_transcription_service
+from app.utils.config import load_config
+from app.adapters.output import FileOutputWriter
+from app.application.services.word_analysis import WordAnalysisService
 
 
 @click.group()
@@ -71,36 +26,31 @@ def cli():
 def scribe(input, output, model, language, compute_type):
     """Распознавание речи с таймингами с помощью OpenAI Whisper или faster-whisper."""
 
-    # Проверка наличия ffmpeg (нужен для обоих движков)
-    if not shutil.which("ffmpeg"):
-        raise RuntimeError("ffmpeg не найден. Установите его: sudo apt install ffmpeg")
+    # Создаем адаптер через фабричный метод (зависимости разрешаются автоматически)
+    adapter, model_name = create_transcription_adapter(
+        model=model,
+        compute_type=compute_type
+    )
 
-    # Определяем движок по формату модели
-    if model.startswith('faster:'):
-        # Используем faster-whisper
-        if not FASTER_WHISPER_AVAILABLE:
-            raise RuntimeError("faster-whisper не установлен. Установите его: pip install faster-whisper")
-        
-        _, model_name = model.split(':', 1)  # Разделяем "faster:model_name"
-        print(f"Загрузка модели faster-whisper: {model_name}")
-        working_model = FasterWhisperModel(model_name, compute_type=compute_type)
-        
-        print(f"Распознавание: {input}")
-        segments, _ = working_model.transcribe(input, beam_size=5, language=language)
-        
-        # faster-whisper возвращает генератор - выводим сегменты в реальном времени
-        write_transcript(segments, output, verbose=True)
-    else:
-        # Используем оригинальный Whisper
-        print(f"Загрузка модели Whisper: {model}")
-        working_model = whisper.load_model(model)
-        
-        print(f"Распознавание: {input}")
-        result = working_model.transcribe(input, language=language, verbose=True)
-        
-        write_transcript(result['segments'], output)
+    # Создаем сервис через фабричный метод
+    service = create_transcription_service(engine=adapter)
+    
+    # Создаем адаптер для записи результатов
+    output_writer = FileOutputWriter(output_path=output, verbose=True)
 
-    print(f"Готово! Стенограмма сохранена в: {output}")
+    # Выполняем транскрипцию через сервис
+    try:
+        list(service.transcribe(
+            input_path=input,
+            output_writer=output_writer,
+            model_name=model_name,
+            language=language,
+            verbose=True,
+            beam_size=5
+        ))
+        click.echo(f'Готово! Стенограмма сохранена в: {output}')
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
 
 
 @cli.command()
@@ -112,93 +62,37 @@ def scribe(input, output, model, language, compute_type):
 @click.option('--no-names', is_flag=True, default=False, help='Исключать имена собственные (Name-граммема).')
 def tag(input, output, limit, lemmatize, stopwords, no_names):
     """Генерация облака слов (частотный список) из текста расшифровки митапа."""
-
-    if lemmatize and not PYMORPHY3_AVAILABLE:
-        raise RuntimeError("Для лемматизации требуется установить pymorphy3: pip install pymorphy3")
-
-    morph = pymorphy3.MorphAnalyzer(lang='ru') if lemmatize else None
-
-    # Загружаем стоп-слова (если указаны)
-    stopword_set = set()
-    if stopwords:
-        with open(stopwords, 'r', encoding='utf-8') as f:
-            stopword_set = {line.strip().lower() for line in f if line.strip()}
-
-    # Загружаем текст
+    
+    service = WordAnalysisService()
+    
     try:
-        with open(input, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        raise click.ClickException(f"Файл не найден: {input}")
-    except Exception as e:
-        raise click.ClickException(f"Ошибка при чтении файла {input}: {e}")
-
-    # Извлекаем текст из строк, убирая таймкоды
-    text_lines = []
-    for line in lines:
-        stripped = line.strip()
-        # Проверяем, есть ли таймкод в начале строки
-        match = TIMESTAMP_PATTERN.match(stripped)
-        if match:
-            # Извлекаем текст после таймкода
-            text_after_timestamp = stripped[match.end():].strip()
-            if text_after_timestamp:
-                text_lines.append(text_after_timestamp)
+        # Выполняем анализ через сервис
+        word_frequency = service.analyze_word_frequency(
+            file_path=input,
+            stopwords=stopwords,
+            lemmatize=lemmatize,
+            no_names=no_names,
+            limit=limit
+        )
+        
+        # Форматируем результат
+        result_text = service.format_result(word_frequency)
+        
+        # Вывод
+        if output:
+            try:
+                with open(output, 'w', encoding='utf-8') as f:
+                    f.write(result_text)
+                click.echo(f'Результат записан в файл: {output}')
+            except Exception as e:
+                raise click.ClickException(f"Ошибка при записи в файл {output}: {e}")
         else:
-            # Если таймкода нет, берем всю строку
-            if stripped:
-                text_lines.append(stripped)
-    
-    full_text = ' '.join(text_lines).lower()
-
-    # Извлекаем слова (длиной >= 3)
-    words = WORD_PATTERN.findall(full_text)
-    
-    if not words:
-        click.echo(f"Внимание: в файле {input} не найдено слов (длиной >= 3 символов).", err=True)
-        return
-
-    # Лемматизация и грамматическая фильтрация
-    if lemmatize:
-        filtered = []
-        for word in words:
-            parsed = morph.parse(word)[0]
-            lemma = parsed.normal_form
-
-            if parsed.tag.POS in POS_TO_EXCLUDE:
-                continue
-
-            if no_names and 'Name' in parsed.tag.grammemes:
-                continue
-
-            filtered.append(lemma)
-        words = filtered
-
-    # Удаляем стоп-слова
-    if stopword_set:
-        words = [word for word in words if word not in stopword_set]
-
-    # Частотный анализ
-    word_counts = Counter(words)
-    most_common = word_counts.most_common(limit)
-    
-    if not most_common:
-        click.echo(f"Внимание: после фильтрации не осталось слов для анализа.", err=True)
-        return
-    
-    output_lines = [f'{word}: {count}' for word, count in most_common]
-    result_text = '\n'.join(output_lines)
-
-    # Вывод
-    if output:
-        try:
-            with open(output, 'w', encoding='utf-8') as f:
-                f.write(result_text)
-            click.echo(f'Результат записан в файл: {output}')
-        except Exception as e:
-            raise click.ClickException(f"Ошибка при записи в файл {output}: {e}")
-    else:
-        click.echo(result_text)
+            click.echo(result_text)
+            
+    except (FileNotFoundError, IOError) as e:
+        raise click.ClickException(str(e))
+    except ValueError as e:
+        click.echo(f"Внимание: {e}", err=True)
 
 
 @cli.command()
