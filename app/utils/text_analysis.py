@@ -11,3 +11,4 @@ POS_TO_EXCLUDE = {'NPRO', 'ADVB', 'PRCL', 'CONJ', 'PREP', 'INTJ'}
 
 
 
+

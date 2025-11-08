@@ -107,11 +107,19 @@ class TestFasterWhisperAdapter:
         ))
         
         # Проверяем, что model.transcribe был вызван правильно
-        mock_model.transcribe.assert_called_once_with(
-            "/path/to/audio.mp3",
-            beam_size=5,  # default
-            language="ru"
-        )
+        mock_model.transcribe.assert_called_once()
+        args, kwargs = mock_model.transcribe.call_args
+        assert args == ("/path/to/audio.mp3",)
+        assert kwargs["beam_size"] == 5  # default
+        assert kwargs["language"] == "ru"
+        # Дополнительные параметры по умолчанию не должны нарушать контракт
+        assert kwargs["condition_on_previous_text"] is False
+        assert kwargs["word_timestamps"] is False
+        assert kwargs["vad_filter"] is True
+        assert kwargs["vad_parameters"] == {
+            "min_silence_duration_ms": 500,
+            "threshold": 0.5,
+        }
         
         # Проверяем количество сегментов
         assert len(segments) == 3
@@ -148,11 +156,11 @@ class TestFasterWhisperAdapter:
         ))
         
         # Проверяем, что beam_size=10 был передан
-        mock_model.transcribe.assert_called_once_with(
-            "/path/to/audio.mp3",
-            beam_size=10,
-            language="en"
-        )
+        mock_model.transcribe.assert_called_once()
+        args, kwargs = mock_model.transcribe.call_args
+        assert args == ("/path/to/audio.mp3",)
+        assert kwargs["beam_size"] == 10
+        assert kwargs["language"] == "en"
     
     def test_transcribe_with_default_beam_size(self):
         """Тест, что beam_size=5 используется по умолчанию."""
@@ -169,11 +177,11 @@ class TestFasterWhisperAdapter:
         ))
         
         # Проверяем, что beam_size=5 используется по умолчанию
-        mock_model.transcribe.assert_called_once_with(
-            "/path/to/audio.mp3",
-            beam_size=5,
-            language="ru"
-        )
+        mock_model.transcribe.assert_called_once()
+        args, kwargs = mock_model.transcribe.call_args
+        assert args == ("/path/to/audio.mp3",)
+        assert kwargs["beam_size"] == 5
+        assert kwargs["language"] == "ru"
     
     def test_transcribe_empty_segments(self):
         """Тест транскрипции с пустыми сегментами."""

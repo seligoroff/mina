@@ -128,20 +128,6 @@ class TranscriptionService:
                 # Проверяем, не оборвалась ли транскрипция подозрительно рано
                 # Если генератор завершился "нормально", но на времени меньше 45 минут,
                 # это может быть проблема faster-whisper с длинными видео
-                if generator_completed_normally and last_segment_time > 0:
-                    # Если последний сегмент меньше 45 минут, а сегментов обработано менее 1000,
-                    # это может быть проблема обрыва (особенно для длинных видео 1+ часа)
-                    if last_segment_time < 2700 and len(segments_list) < 1000:
-                        print(f"\n⚠️  ПРЕДУПРЕЖДЕНИЕ: Возможна проблема с транскрипцией длинного видео! "
-                              f"Транскрипция завершилась на {last_segment_time/60:.1f} минуте "
-                              f"({len(segments_list)} сегментов).", 
-                              file=sys.stderr)
-                        print(f"⚠️  Для длинных видео (1+ час) faster-whisper может обрывать транскрипцию раньше времени.", 
-                              file=sys.stderr)
-                        print(f"⚠️  Рекомендации: попробуйте использовать модель smaller (small вместо medium) "
-                              f"или разбейте видео на части.", 
-                              file=sys.stderr)
-                
                 if not generator_completed_normally and last_segment_time > 0:
                     print(f"ПРЕДУПРЕЖДЕНИЕ: Генератор завершился раньше времени или с ошибкой. "
                           f"Последний сегмент на {last_segment_time/60:.1f} минуте. "

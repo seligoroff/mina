@@ -1,8 +1,20 @@
 # Конфигурация для Mina
 # Скопируйте этот файл в config.yaml и заполните своими данными
 
+provider: deepseek
+
 deepseek:
   api_key: "ваш_api_ключ_здесь"
   model: "deepseek-chat"  # Опционально, по умолчанию используется deepseek-chat
   instructions: "deepseek-protocol-instructions.md"  # Путь к файлу с инструкциями (относительно директории скрипта или абсолютный)
+  temperature: 0.7  # Опционально
+  # Дополнительные параметры можно указать здесь:
+  # max_tokens: 4096
+
+# Пример заготовки для другого провайдера:
+# openai:
+#   api_key: "ваш_api_ключ_openai"
+#   model: "gpt-4o"
+#   instructions: "openai-protocol-instructions.md"
+#   temperature: 0.5
 

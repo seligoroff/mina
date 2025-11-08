@@ -45,5 +45,6 @@ def create_app():
 
 # Примечание: Фабричные методы находятся в app.factories.*
 # - app.factories.transcription_factory: create_transcription_adapter(), create_transcription_service()
-# - Будущие фабрики будут добавлены в app.factories.*
+# - app.factories.protocol_factory: create_protocol_client(), create_protocol_service()
+# - app.factories.tag_factory: create_word_analysis_service()
 

@@ -109,9 +109,10 @@ class TestFileOutputWriter:
         writer.close()
         assert writer._file.closed
     
-    def test_file_output_writer_implements_ioutput_writer(self):
+    def test_file_output_writer_implements_ioutput_writer(self, tmp_path):
         """Тест реализации интерфейса ITranscriptSegmentWriter."""
-        writer = FileOutputWriter("dummy.txt", verbose=False)
+        output_file = tmp_path / "dummy.txt"
+        writer = FileOutputWriter(str(output_file), verbose=False)
         
         assert isinstance(writer, ITranscriptSegmentWriter)
         writer.close()

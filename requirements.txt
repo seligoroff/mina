@@ -46,3 +46,4 @@ triton==3.3.1
 typing_extensions==4.14.1
 urllib3==2.5.0
 pytest>=7.0.0  # Для тестирования
+pytest-cov>=7.0.0  # Покрытие тестов
