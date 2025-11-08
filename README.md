@@ -96,7 +96,7 @@ cp config.yaml.example config.yaml
 deepseek:
   api_key: "ваш_api_ключ_здесь"
   model: "deepseek-chat"
-  instructions: "deepseek-protocol-instructions.md"
+  instructions: "resources/protocol/deepseek-protocol-instructions.md"
 ```
 
 ---
@@ -251,7 +251,7 @@ provider: deepseek
 deepseek:
   api_key: "ваш_api_ключ"
   model: "deepseek-chat"                  # опционально, по умолчанию deepseek-chat
-  instructions: "deepseek-protocol-instructions.md"
+  instructions: "resources/protocol/deepseek-protocol-instructions.md"
   temperature: 0.7                        # опционально
   # Дополнительные параметры, передающиеся в API:
   max_tokens: 4096
@@ -267,7 +267,7 @@ deepseek:
 
 **Что делает команда:**
 - Читает расшифровку из файла
-- Читает инструкции из файла (по умолчанию: `deepseek-protocol-instructions.md`)
+- Читает инструкции из файла (по умолчанию: `resources/protocol/deepseek-protocol-instructions.md`)
 - Отправляет запрос в DeepSeek API с инструкциями и расшифровкой
 - Выводит структурированный протокол (резюме, темы, решения, action items)
 
@@ -338,7 +338,9 @@ src/
 ├── tests/                           # Тесты
 ├── config.yaml                      # Конфигурация (создается из config.yaml.example)
 ├── config.yaml.example              # Пример конфигурации
-├── deepseek-protocol-instructions.md  # Инструкции для создания протокола
+├── resources/
+│   └── protocol/
+│       └── deepseek-protocol-instructions.md  # Инструкции для создания протокола
 ├── stopwords.txt                    # Список стоп-слов (для tag)
 └── requirements.txt                 # Зависимости проекта
 ```
