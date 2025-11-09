@@ -244,3 +244,108 @@ class TestFasterWhisperAdapter:
         assert len(segments) == 1
         assert segments[0].text == "Тест"
 
+    def test_transcribe_generator_exit_logs_warning(self, capsys):
+        faster_whisper_model_class = Mock()
+        adapter = FasterWhisperAdapter(faster_whisper_model_class)
+
+        def segment_generator():
+            yield MagicMock(start=0.0, end=600.0, text="ok")
+            raise GeneratorExit()
+
+        mock_model = Mock()
+        info = MagicMock(language="ru", language_probability=0.9)
+        mock_model.transcribe.return_value = (segment_generator(), info)
+
+        with pytest.raises(GeneratorExit):
+            list(adapter.transcribe(
+                model=mock_model,
+                audio_path="/path",
+                language="ru"
+            ))
+
+        stderr = capsys.readouterr().err
+        assert "Генератор faster-whisper был закрыт принудительно" in stderr
+        assert "⚠️  ПРЕДУПРЕЖДЕНИЕ: Проверьте результат faster-whisper" in stderr
+
+    def test_transcribe_handles_bad_segment_and_continues(self, capsys):
+        faster_whisper_model_class = Mock()
+        adapter = FasterWhisperAdapter(faster_whisper_model_class)
+
+        bad_segment = MagicMock()
+        bad_segment.start = 0.0
+        bad_segment.end = 1.0
+        bad_segment.text = None
+
+        good_segment = MagicMock()
+        good_segment.start = 1.0
+        good_segment.end = 2.0
+        good_segment.text = " ok "
+
+        mock_model = Mock()
+        info = MagicMock(language="ru", language_probability=0.9)
+        mock_model.transcribe.return_value = ([bad_segment, good_segment], info)
+
+        segments = list(adapter.transcribe(
+            model=mock_model,
+            audio_path="/path",
+            language="ru"
+        ))
+
+        stderr = capsys.readouterr().err
+        assert "Ошибка при обработке сегмента 1" in stderr
+        assert len(segments) == 1
+        assert segments[0].text == "ok"
+
+    def test_transcribe_logs_and_reraises_on_error(self, capsys):
+        faster_whisper_model_class = Mock()
+        adapter = FasterWhisperAdapter(faster_whisper_model_class)
+
+        def raising_generator():
+            yield MagicMock(start=0.0, end=1.0, text="ok")
+            raise RuntimeError("boom")
+
+        mock_model = Mock()
+        info = MagicMock(language="ru", language_probability=0.9)
+        mock_model.transcribe.return_value = (raising_generator(), info)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            list(adapter.transcribe(
+                model=mock_model,
+                audio_path="/path",
+                language="ru"
+            ))
+
+        stderr = capsys.readouterr().err
+        assert "Критическая ошибка в генераторе faster-whisper" in stderr
+
+    def test_transcribe_verbose_logs_progress_and_final_warning(self, capsys):
+        faster_whisper_model_class = Mock()
+        adapter = FasterWhisperAdapter(faster_whisper_model_class)
+
+        segments = []
+        for i in range(500):
+            seg = MagicMock()
+            seg.start = float(i)
+            seg.end = float(i + 1)
+            seg.text = f" seg {i} "
+            segments.append(seg)
+
+        mock_model = Mock()
+        info = MagicMock(language="ru", language_probability=0.95)
+        mock_model.transcribe.return_value = (iter(segments), info)
+
+        list(
+            adapter.transcribe(
+                model=mock_model,
+                audio_path="/path",
+                language="ru",
+                verbose=True,
+            )
+        )
+
+        stderr = capsys.readouterr().err
+        assert "Faster-whisper: обнаружен язык 'ru'" in stderr
+        assert "Faster-whisper: обработано 500 сегментов" in stderr
+        assert "⚠️  ПРЕДУПРЕЖДЕНИЕ: Проверьте результат faster-whisper" in stderr
+        assert "⚠️  ПРЕДУПРЕЖДЕНИЕ: Проверьте результат faster-whisper" in stderr
+

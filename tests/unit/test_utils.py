@@ -1,8 +1,11 @@
 """Тесты для утилит."""
 
+import click
 import pytest
 from unittest.mock import Mock, mock_open, patch
+
 from app.utils import write_transcript
+from app.utils.config import load_config
 
 
 @pytest.mark.unit
@@ -117,4 +120,49 @@ def test_write_transcript_with_generator():
         # Проверяем, что все сегменты были записаны
         handle = mock_file()
         assert handle.write.call_count == 3
+
+
+@pytest.mark.unit
+def test_load_config_missing_file(tmp_path):
+    """Файл отсутствует — ClickException с понятным сообщением."""
+    missing_path = tmp_path / "missing.yaml"
+
+    with pytest.raises(click.ClickException) as exc_info:
+        load_config(str(missing_path))
+
+    message = str(exc_info.value)
+    assert "не найден" in message
+    assert str(missing_path) in message
+
+
+@pytest.mark.unit
+def test_load_config_invalid_yaml(tmp_path):
+    """Некорректный YAML должен привести к ClickException."""
+    config_path = tmp_path / "invalid.yaml"
+    config_path.write_text("foo: [bar\n", encoding="utf-8")
+
+    with pytest.raises(click.ClickException) as exc_info:
+        load_config(str(config_path))
+
+    message = str(exc_info.value)
+    assert "Ошибка при чтении YAML конфига" in message
+    assert str(config_path) in message
+
+
+@pytest.mark.unit
+def test_load_config_other_error(monkeypatch, tmp_path):
+    """Любая другая ошибка чтения также упаковывается в ClickException."""
+    config_path = tmp_path / "config.yaml"
+
+    def _boom(*args, **kwargs):
+        raise OSError("boom")
+
+    monkeypatch.setattr("builtins.open", _boom)
+
+    with pytest.raises(click.ClickException) as exc_info:
+        load_config(str(config_path))
+
+    message = str(exc_info.value)
+    assert "Ошибка при загрузке конфига" in message
+    assert "boom" in message
 

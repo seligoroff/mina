@@ -81,3 +81,5 @@ class DeepSeekProtocolClient(ILLMProtocolClient):
             raise ProtocolClientError("Ответ DeepSeek не содержит контент") from exc
 
         return ProtocolResponse(content=content, provider_raw=data)
+
+

@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 from app.adapters.output import FileOutputWriter
-from app.application.ports import ITranscriptionEngine, ITranscriptSegmentWriter
 from app.application.services.word_analysis import WordAnalysisService
+from app.application.ports import ITranscriptionEngine, ITranscriptSegmentWriter
 from app.domain.models.protocol import ProtocolConfig
 from app.domain.models.word_analysis import WordAnalysisConfig
 from app.factories import (
@@ -20,13 +20,10 @@ from app.utils.config import load_config
 
 DEFAULT_BEAM_SIZE = 5
 
+
 @dataclass(frozen=True)
 class ScribeCommandOptions:
-    """Структура входных параметров для команды scribe.
-
-    Отделяет слой CLI (Click) от бизнес-логики приложения, позволяя
-    подставлять данные из других интерфейсов (например, REST API).
-    """
+    """Структура входных параметров для команды scribe."""
 
     input_path: str
     output_path: str
@@ -41,41 +38,33 @@ class ScribeCommandHandler:
 
     def __init__(
         self,
-        transcription_adapter_factory: Callable[[str, str], Tuple[ITranscriptionEngine, str]] = None,
-        transcription_service_factory: Callable[[ITranscriptionEngine], object] = None,
-        transcript_writer_factory: Callable[[str, bool], ITranscriptSegmentWriter] = None,
+        transcription_adapter_factory: Optional[
+            Callable[[str, str], Tuple[ITranscriptionEngine, str]]
+        ] = None,
+        transcription_service_factory: Optional[
+            Callable[[ITranscriptionEngine], Any]
+        ] = None,
+        transcript_writer_factory: Optional[
+            Callable[[str, bool], ITranscriptSegmentWriter]
+        ] = None,
     ) -> None:
-        """Инициализирует обработчик с зависимостями (можно переопределить в тестах)."""
         self._transcription_adapter_factory = (
-            transcription_adapter_factory
-            if transcription_adapter_factory is not None
-            else self._default_adapter_factory
+            transcription_adapter_factory or self._default_adapter_factory
         )
         self._transcription_service_factory = (
-            transcription_service_factory
-            if transcription_service_factory is not None
-            else self._default_service_factory
+            transcription_service_factory or self._default_service_factory
         )
         self._transcript_writer_factory = (
-            transcript_writer_factory
-            if transcript_writer_factory is not None
-            else self._default_writer_factory
+            transcript_writer_factory or self._default_writer_factory
         )
 
     def execute(self, options: ScribeCommandOptions) -> None:
-        """Выполняет транскрипцию audio→text, повторяя текущее поведение CLI."""
         adapter, model_name = self._transcription_adapter_factory(
-            options.model,
-            options.compute_type,
+            options.model, options.compute_type
         )
         service = self._transcription_service_factory(adapter)
-        writer = self._transcript_writer_factory(
-            options.output_path,
-            options.verbose,
-        )
+        writer = self._transcript_writer_factory(options.output_path, options.verbose)
 
-        # TranscriptionService сам заботится о закрытии writer внутри трансляции,
-        # но если ошибка произойдет до вызова transcribe, нужно вручную закрыть файл.
         try:
             list(
                 service.transcribe(
@@ -88,31 +77,24 @@ class ScribeCommandHandler:
                 )
             )
         except Exception:
-            # Если трансляция не произошла (например, ошибка при загрузке модели),
-            # TranscriptionService не закрывает writer — сделаем это здесь.
             writer.close()
             raise
 
     @staticmethod
     def _default_adapter_factory(model: str, compute_type: str) -> Tuple[ITranscriptionEngine, str]:
-        """Вспомогательный метод для вызова штатной фабрики адаптера."""
         return create_transcription_adapter(model=model, compute_type=compute_type)
 
     @staticmethod
     def _default_service_factory(engine: ITranscriptionEngine):
-        """Создает сервис транскрипции через штатную фабрику."""
         return create_transcription_service(engine=engine)
 
     @staticmethod
     def _default_writer_factory(output_path: str, verbose: bool) -> ITranscriptSegmentWriter:
-        """Создает writer для записи транскрипции."""
         return FileOutputWriter(output_path=output_path, verbose=verbose)
 
 
 @dataclass(frozen=True)
 class ProtocolCommandOptions:
-    """Входные параметры команды protocol."""
-
     transcript_path: str
     output_path: Optional[str]
     config_path: Optional[str]
@@ -140,24 +122,22 @@ class ProtocolCommandHandler:
         self._output_writer = output_writer or self._default_output_writer
 
     def execute(self, options: ProtocolCommandOptions) -> None:
-        """Выполняет генерацию протокола."""
         if not os.path.exists(options.transcript_path):
             raise FileNotFoundError(f"Файл с расшифровкой не найден: {options.transcript_path}")
 
         config_path = options.config_path
         if config_path is None:
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(script_dir, "..", "..", "..", "config.yaml")
-            config_path = os.path.abspath(config_path)
+            config_path = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "config.yaml"))
+
         if not os.path.exists(config_path):
             raise FileNotFoundError(
-                "Файл конфигурации не найден: "
-                f"{config_path}. Укажите путь через --config"
+                f"Файл конфигурации не найден: {config_path}. Укажите путь через --config"
             )
 
-        config_raw = self._config_loader(config_path)
-        provider_key = config_raw.get("provider", "deepseek")
-        provider_section = config_raw.get(provider_key, {})
+        raw_config = self._config_loader(config_path)
+        provider_key = raw_config.get("provider", "deepseek")
+        provider_section = raw_config.get(provider_key, {})
         if not provider_section:
             raise ValueError(f"В конфиге отсутствует секция '{provider_key}'")
 
@@ -174,18 +154,16 @@ class ProtocolCommandHandler:
                 raise FileNotFoundError(f"Файл с инструкциями не найден: {instructions_path}")
             instructions_text = self._instructions_reader(instructions_path)
 
-        print("Отправка запроса к провайдеру протоколов...", flush=True)
         transcript_text = self._transcript_reader(options.transcript_path)
+        print("Отправка запроса к провайдеру протоколов...", flush=True)
 
         client = self._protocol_client_factory(config)
         service = self._protocol_service_factory(client)
-
         response = service.generate_protocol(
             instructions=instructions_text,
             transcript=transcript_text,
             config=config,
         )
-
         self._output_writer(options.output_path, response.content)
 
     @staticmethod
@@ -228,8 +206,6 @@ class ProtocolCommandHandler:
 
 @dataclass(frozen=True)
 class TagCommandOptions:
-    """Параметры команды tag."""
-
     transcript_path: str
     output_path: Optional[str]
     limit: int = 50
@@ -250,7 +226,7 @@ class TagCommandHandler:
     ) -> None:
         self._file_reader = file_reader or self._default_file_reader
         self._stopwords_loader = stopwords_loader or self._default_stopwords_loader
-        self._analysis_service_factory = analysis_service_factory or self._default_service_factory
+        self._analysis_service_factory = analysis_service_factory or create_word_analysis_service
         self._output_writer = output_writer or self._default_output_writer
 
     def execute(self, options: TagCommandOptions) -> None:
@@ -259,7 +235,6 @@ class TagCommandHandler:
 
         lines = self._file_reader(options.transcript_path)
         stopwords = self._stopwords_loader(options.stopwords_path)
-
         config = WordAnalysisConfig(
             lemmatize=options.lemmatize,
             exclude_names=options.exclude_names,
@@ -267,14 +242,8 @@ class TagCommandHandler:
         )
 
         service = self._analysis_service_factory()
-        result = service.analyze(
-            lines=lines,
-            stopwords=stopwords,
-            config=config,
-        )
-
-        output = result.to_text()
-        self._output_writer(options.output_path, output)
+        result = service.analyze(lines=lines, stopwords=stopwords, config=config)
+        self._output_writer(options.output_path, result.to_text())
 
     @staticmethod
     def _default_file_reader(path: str) -> Iterable[str]:
@@ -297,10 +266,6 @@ class TagCommandHandler:
             raise
         except Exception as exc:
             raise IOError(f"Ошибка при чтении файла со стоп-словами {path}: {exc}")
-
-    @staticmethod
-    def _default_service_factory() -> WordAnalysisService:
-        return create_word_analysis_service()
 
     @staticmethod
     def _default_output_writer(output_path: Optional[str], content: str) -> None:

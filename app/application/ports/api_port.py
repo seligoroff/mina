@@ -21,3 +21,5 @@ class ILLMProtocolClient(ABC):
             ProtocolClientError: если провайдер вернул ошибку или ответ некорректен.
         """
         raise NotImplementedError
+
+

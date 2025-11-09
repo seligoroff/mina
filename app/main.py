@@ -21,8 +21,8 @@ def get_transcription_dependencies():
             - 'whisper_module': Модуль OpenAI Whisper
             - 'faster_whisper_model_class': Класс WhisperModel из faster_whisper
     """
-    import whisper
-    from faster_whisper import WhisperModel as FasterWhisperModel
+    import whisper  # type: ignore[import]
+    from faster_whisper import WhisperModel as FasterWhisperModel  # type: ignore[import]
     
     return {
         'whisper_module': whisper,
@@ -38,9 +38,51 @@ def create_app():
         dict: Словарь с инициализированными компонентами приложения
               (адаптеры, сервисы и т.д.)
     """
-    # TODO: Будет реализовано при рефакторинге
-    # Здесь будет создание адаптеров и сервисов
-    pass
+    import pymorphy3  # type: ignore[import]
+    from app.adapters.input.cli import (
+        ScribeCommandHandler,
+        ProtocolCommandHandler,
+        TagCommandHandler,
+    )
+    from app.factories import (
+        create_transcription_adapter,
+        create_transcription_service,
+        create_protocol_client,
+        create_protocol_service,
+        create_word_analysis_service,
+    )
+
+    morph_analyzer = pymorphy3.MorphAnalyzer(lang="ru")
+
+    handlers = {
+        "scribe": ScribeCommandHandler(),
+        "protocol": ProtocolCommandHandler(),
+        "tag": TagCommandHandler(
+            analysis_service_factory=lambda: create_word_analysis_service(
+                dependencies={"morph": morph_analyzer}
+            )
+        ),
+    }
+
+    services = {
+        "word_analysis": create_word_analysis_service(
+            dependencies={"morph": morph_analyzer}
+        ),
+    }
+
+    factories = {
+        "transcription": create_transcription_adapter,
+        "transcription_service": create_transcription_service,
+        "protocol_client": create_protocol_client,
+        "protocol_service": create_protocol_service,
+        "word_analysis_service": create_word_analysis_service,
+    }
+
+    return {
+        "handlers": handlers,
+        "services": services,
+        "factories": factories,
+    }
 
 
 # Примечание: Фабричные методы находятся в app.factories.*

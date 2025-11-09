@@ -49,3 +49,5 @@ class ProtocolService:
         """
         request = self.build_request(instructions, transcript, config)
         return self._client.generate_protocol(request)
+
+

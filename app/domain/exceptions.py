@@ -7,3 +7,5 @@ class DomainError(Exception):
 
 class ProtocolClientError(DomainError):
     """Ошибка, возникшая при обращении к провайдеру LLM."""
+
+

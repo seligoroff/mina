@@ -121,3 +121,5 @@ class TestDeepSeekProtocolClient:
         with pytest.raises(ProtocolClientError, match="не содержит контент"):
             client.generate_protocol(request)
 
+
+

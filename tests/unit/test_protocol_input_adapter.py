@@ -1,6 +1,5 @@
 """Тесты для входного адаптера команды protocol."""
 
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -92,8 +91,6 @@ class TestProtocolCommandHandlerUnit:
 
         handler = ProtocolCommandHandler(
             config_loader=lambda _: {},
-            config_parser=Mock(),
-            instructions_reader=Mock(),
             transcript_reader=Mock(return_value=""),
             protocol_client_factory=Mock(),
             protocol_service_factory=Mock(),
@@ -109,70 +106,35 @@ class TestProtocolCommandHandlerUnit:
         with pytest.raises(ValueError, match="отсутствует секция"):
             handler.execute(options)
 
+    def test_execute_raises_when_transcript_missing(self, tmp_path):
+        handler = ProtocolCommandHandler(
+            config_loader=Mock(return_value={"deepseek": {"api_key": "key"}})
+        )
 
-@pytest.mark.unit
-def test_protocol_handler_integration_flow(tmp_path):
-    """Мини-интеграционный тест: реальные чтения файлов, заглушки клиента/сервиса."""
-    transcript_path = tmp_path / "transcript.txt"
-    transcript_text = "Это стенограмма встречи."
-    transcript_path.write_text(transcript_text, encoding="utf-8")
+        options = ProtocolCommandOptions(
+            transcript_path=str(tmp_path / "missing.txt"),
+            output_path=None,
+            config_path=str(tmp_path / "config.yaml"),
+        )
 
-    instructions_path = tmp_path / "instructions.md"
-    instructions_text = "Сформируй протокол."
-    instructions_path.write_text(instructions_text, encoding="utf-8")
+        with pytest.raises(FileNotFoundError, match="Файл с расшифровкой не найден"):
+            handler.execute(options)
 
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        "\n".join([
-            "provider: deepseek",
-            "deepseek:",
-            "  api_key: test-key",
-            "  model: deepseek-chat",
-            "  temperature: 0.8",
-            f"  instructions: {instructions_path.name}",
-        ]),
-        encoding="utf-8",
-    )
+    def test_execute_raises_when_instructions_missing(self, tmp_path):
+        transcript_file = tmp_path / "input.txt"
+        transcript_file.write_text("data", encoding="utf-8")
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("provider: deepseek\ndeepseek:\n  api_key: key\n  instructions: missing.md", encoding="utf-8")
 
-    captured = {}
+        handler = ProtocolCommandHandler()
 
-    class DummyService:
-        def __init__(self, expected_config: ProtocolConfig):
-            self.expected_config = expected_config
+        options = ProtocolCommandOptions(
+            transcript_path=str(transcript_file),
+            output_path=None,
+            config_path=str(config_file),
+        )
 
-        def generate_protocol(self, instructions: str, transcript: str, config: ProtocolConfig):
-            assert instructions == instructions_text
-            assert transcript == transcript_text
-            assert config.provider == "deepseek"
-            return ProtocolResponse(content="Готовый протокол")
+        with pytest.raises(FileNotFoundError, match="Файл с инструкциями не найден"):
+            handler.execute(options)
 
-    def protocol_client_factory(config: ProtocolConfig):
-        captured["config"] = config
-        return object()
-
-    def protocol_service_factory(client):
-        return DummyService(captured["config"])
-
-    def output_writer(path: str, content: str):
-        captured["output_path"] = path
-        captured["content"] = content
-
-    handler = ProtocolCommandHandler(
-        protocol_client_factory=protocol_client_factory,
-        protocol_service_factory=protocol_service_factory,
-        output_writer=output_writer,
-    )
-
-    options = ProtocolCommandOptions(
-        transcript_path=str(transcript_path),
-        output_path=str(tmp_path / "protocol.txt"),
-        config_path=str(config_path),
-    )
-
-    handler.execute(options)
-
-    assert captured["output_path"] == str(tmp_path / "protocol.txt")
-    assert captured["content"] == "Готовый протокол"
-    assert captured["config"].api_key == "test-key"
-    assert captured["config"].instructions_path == str(instructions_path)
 

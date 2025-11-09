@@ -30,3 +30,5 @@ class WordFrequencyResult:
         """Форматирует результат в текстовый вид."""
         return "\n".join(f"{word}: {count}" for word, count in self.items)
 
+
+
