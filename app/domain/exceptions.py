@@ -9,3 +9,9 @@ class ProtocolClientError(DomainError):
     """Ошибка, возникшая при обращении к провайдеру LLM."""
 
 
+class ChatExportError(DomainError):
+    """Ошибка, связанная с экспортом сообщений чата/канала."""
+
+
+
+

@@ -50,6 +50,7 @@ def create_app():
         create_protocol_client,
         create_protocol_service,
         create_word_analysis_service,
+        create_telethon_chat_exporter,
     )
 
     morph_analyzer = pymorphy3.MorphAnalyzer(lang="ru")
@@ -76,6 +77,7 @@ def create_app():
         "protocol_client": create_protocol_client,
         "protocol_service": create_protocol_service,
         "word_analysis_service": create_word_analysis_service,
+        "telethon_chat_exporter": create_telethon_chat_exporter,
     }
 
     return {

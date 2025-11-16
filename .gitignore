@@ -9,3 +9,6 @@ __pycache__/
 .Python
 .coverage
 .pytest_cache/
+*.session
+.env
+tg-*

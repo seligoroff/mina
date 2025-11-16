@@ -18,3 +18,15 @@ deepseek:
 #   instructions: "openai-protocol-instructions.md"
 #   temperature: 0.5
 
+telegram:
+  # Получить api_id/api_hash: https://my.telegram.org → API development tools
+  api_id: ""            # int или строка, оставить пустым и заполнить в config.yaml
+  api_hash: ""          # строка, оставить пустым и заполнить в config.yaml
+  session_path: "~/.config/telegram/mina.session"  # путь к .session файлу Telethon
+  peer: ""              # @username, id или ссылка на канал/чат (опционально)
+  # Рекомендуется задавать период экспорта через CLI, а не в конфиге:
+  # date_from: ""       # ISO8601, нижняя граница (включительно)
+  # date_to: ""         # ISO8601, верхняя граница (включительно)
+  limit_per_call: 200   # размер батча при выгрузке
+  rate_limit_s: 0.2     # задержка между запросами к API
+

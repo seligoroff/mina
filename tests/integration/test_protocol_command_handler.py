@@ -73,3 +73,5 @@ def test_protocol_handler_integration_flow(tmp_path: Path):
     assert captured["config"].api_key == "test-key"
     assert captured["config"].instructions_path == str(instructions_path)
 
+
+
